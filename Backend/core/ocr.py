@@ -1,0 +1,1 @@
+# OCR: lectura de boletas (pytesseract)
