@@ -8,7 +8,7 @@ def calcular_smartscore(gastos: list, ingreso_mensual: float):
     total_gastos = sum(g["monto"] for g in gastos)
     porcentaje_gasto = (total_gastos / ingreso_mensual) * 100 if ingreso_mensual > 0 else 100
 
-    # Lógica de puntuación: mientras menos porcentaje de gasto, mejor puntaje
+    # mientras menos porcentaje de gasto, mejor puntaje
     if porcentaje_gasto <= 50:
         score = 90 + (50 - porcentaje_gasto) * 0.2
         estado = "Excelente"

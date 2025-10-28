@@ -2,13 +2,7 @@
 from core.smartscore_engine import calcular_smartscore
 
 def simular_cambio(gastos: list, ingreso_mensual: float, reduccion_por_categoria: dict):
-    """
-    Simula cómo cambiaría el SmartScore si el usuario reduce sus gastos
-    en ciertas categorías (porcentaje de reducción por categoría).
-    
-    Ejemplo:
-    reduccion_por_categoria = {"Comida": 10, "Ocio": 20}
-    """
+
     gastos_simulados = []
 
     for g in gastos:
