@@ -10,6 +10,8 @@ venv/
 # Modelos y datos
 models/*.pkl
 data/*.csv
+data/*.db
+storage/
 
 # VSCode
 .vscode/

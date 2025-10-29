@@ -1,58 +1,96 @@
+"""Utilidades para normalizar la salida de OCR y derivar campos relevantes."""
+
+from __future__ import annotations
+
+import datetime as dt
 import re
-import json
+from decimal import Decimal
+from typing import Iterable
 
-def limpiar_texto(texto_raw: str) -> dict:
-    """
-    Limpia y estructura el texto crudo obtenido del OCR.
-    Devuelve un diccionario con descripción, monto, fecha y categoría.
-    """
+from Backend.core.enums import ExpenseCategory
 
-    # 1️⃣ Normalizar texto
-    texto = texto_raw.lower()
-    texto = re.sub(r"[^a-z0-9áéíóúüñ\s\.,:/$-]", " ", texto)
-    texto = re.sub(r"\s+", " ", texto).strip()
 
-    # 2️⃣ Fecha (formato dd-mm-yyyy o dd/mm/yyyy)
-    fecha_match = re.search(r"\b(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\b", texto)
-    fecha = fecha_match.group(1) if fecha_match else "desconocida"
+DATE_PATTERNS: Iterable[re.Pattern[str]] = (
+    re.compile(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b"),
+    re.compile(r"\b(\d{4})[/-](\d{1,2})[/-](\d{1,2})\b"),
+)
 
-    # 3️⃣ Monto (último “total” que aparezca)
-    total_matches = re.findall(r"total(?:\s*[a-z]*\s*[:$]?\s*)([\d\.,-]+)", texto)
-    if total_matches:
-        monto = total_matches[-1]
-    else:
-        # fallback: último número grande
-        numeros = re.findall(r"\d{3,6}", texto)
-        monto = numeros[-1] if numeros else "0"
+CURRENCY_SYMBOLS = {"$", "s/", "s/.", "usd", "pen", "€"}
 
-    # Limpieza del monto
-    monto = monto.replace(".", "").replace(",", "").replace("-", "").strip()
 
-    # 4️⃣ Clasificación simplificada
-    # Palabras clave principales por grupo (sin listas largas)
-    grupos = {
-        "restaurante": ["restaurante", "café", "comida", "menu", "bar"],
-        "supermercado": ["super", "mercado"],
-        "ropa": ["ropa", "fashion", "vestido", "polera", "tienda"],
-        "transporte": ["taxi", "bus", "uber", "gasolina"],
-        "ocio": ["cine", "netflix", "parque"],
-        "servicios": ["agua", "luz", "internet", "telefono"],
-        "salud": ["farmacia", "clinica", "hospital"],
-        "educacion": ["universidad", "colegio", "libro"]
-    }
+CATEGORY_KEYWORDS: dict[ExpenseCategory, tuple[str, ...]] = {
+    ExpenseCategory.ALIMENTACION: ("rest", "caf", "comid", "menu", "bar", "pan"),
+    ExpenseCategory.TRANSPORTE: ("taxi", "bus", "uber", "gasolina", "combustible", "peaje"),
+    ExpenseCategory.SERVICIOS: ("agua", "luz", "internet", "telefon", "servicio"),
+    ExpenseCategory.SALUD: ("farmacia", "clinica", "hospital", "medic"),
+    ExpenseCategory.EDUCACION: ("universidad", "colegio", "libro", "curso", "academ"),
+    ExpenseCategory.OCIO: ("cine", "netflix", "spotify", "entreten"),
+    ExpenseCategory.ROPA: ("ropa", "fashion", "vest", "polera", "jean"),
+    ExpenseCategory.VIVIENDA: ("alquiler", "hipoteca", "departamento"),
+}
 
-    categoria_detectada = "general"
-    for cat, palabras in grupos.items():
-        if any(p in texto for p in palabras):
-            categoria_detectada = cat
-            break
 
-    # 5️⃣ Descripción
-    descripcion = f"gasto en {categoria_detectada}"
+def _normalize_text(text: str) -> str:
+    sanitized = re.sub(r"[^\w\s\-/.,:]", " ", text, flags=re.UNICODE)
+    sanitized = re.sub(r"\s+", " ", sanitized)
+    return sanitized.strip().lower()
 
+
+def _parse_date(text: str) -> dt.date | None:
+    for pattern in DATE_PATTERNS:
+        match = pattern.search(text)
+        if not match:
+            continue
+        parts = [int(p) for p in match.groups()]
+        if len(parts) == 3 and len(str(parts[0])) == 4:
+            year, month, day = parts
+        elif len(parts) == 3 and len(str(parts[2])) == 4:
+            day, month, year = parts
+        else:
+            continue
+        try:
+            return dt.date(year, month, day)
+        except ValueError:
+            continue
+    return None
+
+
+def _parse_amount(text: str) -> Decimal | None:
+    candidates = re.findall(r"(?:total|importe|monto|suma)[:\s]*([0-9]+[0-9.,]*)", text)
+    if not candidates:
+        candidates = re.findall(r"([0-9]+[0-9.,]{2,})", text)
+    for candidate in reversed(candidates):
+        cleaned = candidate.replace(" ", "").replace(",", ".")
+        try:
+            value = Decimal(cleaned)
+        except Exception:
+            continue
+        if value > 0:
+            return value.quantize(Decimal("0.01"))
+    return None
+
+
+def _infer_category(text: str) -> ExpenseCategory:
+    for category, keywords in CATEGORY_KEYWORDS.items():
+        if any(keyword in text for keyword in keywords):
+            return category
+    return ExpenseCategory.GENERAL
+
+
+def estructurar_texto(texto_raw: str) -> dict:
+    """Devuelve un diccionario con descripción, monto, fecha y categoría detectados."""
+    normalized = _normalize_text(texto_raw)
+
+    amount = _parse_amount(normalized)
+    expense_date = _parse_date(normalized)
+    category = _infer_category(normalized)
+
+    descripcion = f"gasto en {category.value.replace('_', ' ')}"
     return {
         "descripcion": descripcion,
-        "monto": monto,
-        "fecha": fecha,
-        "categoria": categoria_detectada
+        # Usamos float para compatibilidad con JSON; mantenemos Decimal en capa de servicio.
+        "monto": float(amount) if amount is not None else None,
+        "fecha": expense_date.isoformat() if expense_date else None,
+        "categoria": category.value,
+        "texto_normalizado": normalized,
     }

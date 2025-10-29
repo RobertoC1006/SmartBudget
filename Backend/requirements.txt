@@ -2,13 +2,19 @@
 fastapi==0.115.0
 uvicorn==0.30.1
 
-# Validación y manejo de datos
+# Configuración y validación
 pydantic==2.9.0
+pydantic-settings==2.3.3
 python-multipart==0.0.9
 
-# Manipulación de datos
-pandas==2.2.3
-numpy==2.1.1
+# Persistencia y seguridad
+SQLAlchemy==2.0.36
+passlib[bcrypt]==1.7.4
+bcrypt==3.2.2
+python-jose[cryptography]==3.3.0
 
-# Fecha y tiempo
-python-dateutil==2.9.0
+# OCR y archivos
+Pillow==10.4.0
+pytesseract==0.3.13
+pdf2image==1.17.0
+email-validator==2.2.0

@@ -1,1 +1,0 @@
-# 🎯 Retos y metas de ahorro del usuario
