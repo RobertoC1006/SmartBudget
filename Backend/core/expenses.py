@@ -9,7 +9,7 @@ from typing import Iterable, Optional
 from sqlalchemy import asc, desc
 from sqlalchemy.orm import Session
 
-from Backend.core import presupuesto as budgets_service
+from Backend.core import budgets as budgets_service
 from Backend.core.enums import ExpenseCategory, ExpenseSource
 from Backend.core.limpiador_datos import estructurar_texto
 from Backend.core.ocr import OCRResult, read_bytes
@@ -53,7 +53,7 @@ def create_expense(
     db.commit()
     db.refresh(expense)
     if expense.budget:
-        from Backend.core import alertas as alerts_service  # import interno para evitar ciclo
+        from Backend.core import alerts as alerts_service  # import interno para evitar ciclo
 
         alerts_service.check_budget_alerts(db, expense.budget)
         from Backend.core import smartscore as smartscore_service
