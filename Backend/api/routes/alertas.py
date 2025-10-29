@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from Backend.api.dependencies import get_current_user
 from Backend.api.schemas import alert as alert_schema
-from Backend.core import alerts as alerts_service
+from Backend.core import alertas as alerts_service
 from Backend.db import models
 from Backend.db.session import get_db
 

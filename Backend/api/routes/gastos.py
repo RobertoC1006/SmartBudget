@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from Backend.api.dependencies import get_current_user
 from Backend.api.schemas import expense as expense_schema
-from Backend.core import expenses as expenses_service
+from Backend.core import gastos as expenses_service
 from Backend.core.enums import ExpenseCategory, ExpenseSource
 from Backend.db import models
 from Backend.db.session import get_db

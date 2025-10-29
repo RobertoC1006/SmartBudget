@@ -9,7 +9,7 @@ from typing import Iterable
 
 from sqlalchemy.orm import Session
 
-from Backend.core import budgets as budgets_service
+from Backend.core import presupuesto as budgets_service
 from Backend.core import smartscore as smartscore_service
 from Backend.core.enums import ExpenseCategory, SimulationScenario
 from Backend.db import models
