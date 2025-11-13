@@ -1,5 +1,7 @@
 const SB = (() => {
-    const API_BASE_URL = "http://127.0.0.1:8000/api";
+    const RUNTIME_CONFIG = window.__SB_RUNTIME_CONFIG__ || window.SB_RUNTIME_CONFIG || {};
+    const API_BASE_URL = RUNTIME_CONFIG.apiBaseUrl || RUNTIME_CONFIG.API_BASE_URL || "http://127.0.0.1:8000/api";
+    const OCR_WEBHOOK_URL = RUNTIME_CONFIG.ocrWebhookUrl || RUNTIME_CONFIG.OCR_WEBHOOK_URL || null;
     const ACCESS_TOKEN_KEY = "sb_access_token";
     const REFRESH_TOKEN_KEY = "sb_refresh_token";
     const USER_KEY = "sb_user";
@@ -214,7 +216,13 @@ const SB = (() => {
     }
 
     return {
-        config: { API_BASE_URL },
+        config: {
+            API_BASE_URL,
+            apiBaseUrl: API_BASE_URL,
+            OCR_WEBHOOK_URL,
+            ocrWebhookUrl: OCR_WEBHOOK_URL,
+            hasOcrWebhook: Boolean(OCR_WEBHOOK_URL),
+        },
         storage,
         request,
         showAlert,

@@ -102,16 +102,58 @@
                         <div class="card border-0 shadow-sm h-100">
                             <div class="card-body">
                                 <h5 class="text-sb-dark mb-3">Carga con OCR</h5>
-                                <form id="ocrExpenseForm" class="vstack gap-3">
-                                    <div>
+                                <form id="ocrExpenseForm" class="row g-3" novalidate>
+                                    <div class="col-12">
                                         <label class="form-label text-secondary" for="receiptFile">Archivo</label>
                                         <input class="form-control" type="file" id="receiptFile" accept="image/*,.pdf" required />
+                                        <div class="form-text">Formatos aceptados: JPG, PNG y PDF (máx. 5 MB).</div>
                                     </div>
-                                    <div>
-                                        <label class="form-label text-secondary" for="ocrPreview">Resultado OCR</label>
-                                        <textarea class="form-control" id="ocrPreview" rows="5" readonly placeholder="Previsualización de los datos extraídos..."></textarea>
+                                    <div class="col-12">
+                                        <div id="ocrStatus" class="small text-secondary">Sube un archivo para iniciar el reconocimiento.</div>
                                     </div>
-                                    <button class="btn btn-outline-success" type="submit">Procesar boleta</button>
+                                    <div class="col-12">
+                                        <label class="form-label text-secondary" for="ocrDescription">Descripción sugerida</label>
+                                        <input type="text" class="form-control" id="ocrDescription" placeholder="Supermercado Plaza" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label text-secondary" for="ocrAmount">Monto sugerido</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text bg-light text-secondary">S/</span>
+                                            <input type="number" min="0" step="0.01" class="form-control" id="ocrAmount" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label text-secondary" for="ocrCategory">Categoría detectada</label>
+                                        <select class="form-select" id="ocrCategory">
+                                            <option value="">Selecciona...</option>
+                                            <option value="alimentacion">Alimentación</option>
+                                            <option value="transporte">Transporte</option>
+                                            <option value="servicios">Servicios</option>
+                                            <option value="ocio">Ocio</option>
+                                            <option value="salud">Salud</option>
+                                            <option value="educacion">Educación</option>
+                                            <option value="ropa">Ropa</option>
+                                            <option value="vivienda">Vivienda</option>
+                                            <option value="otros">Otros</option>
+                                            <option value="general">General</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label text-secondary" for="ocrExpenseDate">Fecha encontrada</label>
+                                        <input type="date" class="form-control" id="ocrExpenseDate" />
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label text-secondary" for="ocrRawText">Texto OCR</label>
+                                        <textarea class="form-control" id="ocrRawText" rows="4" placeholder="Aquí verás el texto estructurado para validar o corregir detalle por detalle."></textarea>
+                                    </div>
+                                    <div class="col-12 d-flex flex-wrap gap-2">
+                                        <button class="btn btn-outline-success" type="button" id="processReceiptBtn">
+                                            Procesar boleta
+                                        </button>
+                                        <button class="btn btn-success" type="submit" id="saveOcrExpenseBtn" disabled>
+                                            Registrar gasto (OCR)
+                                        </button>
+                                    </div>
                                 </form>
                             </div>
                         </div>
@@ -168,6 +210,12 @@
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
         crossorigin="anonymous"
     ></script>
+    <script>
+        window.__SB_RUNTIME_CONFIG__ = {
+            apiBaseUrl: "http://127.0.0.1:8000/api",
+            ocrWebhookUrl: "https://n8n-n8n.er8i4q.easypanel.host/webhook-test/smartbudget/ocr",
+        };
+    </script>
     <script src="../assets/js/core.js"></script>
     <script src="../assets/js/expenses.js"></script>
 </body>

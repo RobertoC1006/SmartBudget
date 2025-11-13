@@ -15,6 +15,9 @@ class ExpenseCreate(BaseModel):
     category: ExpenseCategory = Field(default=ExpenseCategory.GENERAL)
     expense_date: Optional[dt.date] = None
     currency: Optional[str] = Field(default=None, max_length=3)
+    source: Optional[ExpenseSource] = None
+    extra_data: Optional[dict] = None
+    ocr_confidence: Optional[float] = Field(default=None, ge=0, le=1)
 
 
 class ExpenseRead(BaseModel):

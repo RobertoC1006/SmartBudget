@@ -1,13 +1,41 @@
 document.addEventListener("DOMContentLoaded", async () => {
     if (!window.SB) return;
-    const { initProtectedPage, request, utils, showAlert } = window.SB;
+    const { initProtectedPage, request, utils, showAlert, config } = window.SB;
 
     const alertContainer = document.getElementById("alertContainer");
     const manualForm = document.getElementById("manualExpenseForm");
     const ocrForm = document.getElementById("ocrExpenseForm");
-    const ocrPreview = document.getElementById("ocrPreview");
     const expensesTable = document.getElementById("expensesList");
     const filterCategory = document.getElementById("filterCategory");
+
+    const receiptFileInput = document.getElementById("receiptFile");
+    const processReceiptBtn = document.getElementById("processReceiptBtn");
+    const saveOcrExpenseBtn = document.getElementById("saveOcrExpenseBtn");
+    const ocrDescription = document.getElementById("ocrDescription");
+    const ocrAmount = document.getElementById("ocrAmount");
+    const ocrCategory = document.getElementById("ocrCategory");
+    const ocrExpenseDate = document.getElementById("ocrExpenseDate");
+    const ocrRawText = document.getElementById("ocrRawText");
+    const ocrStatus = document.getElementById("ocrStatus");
+
+    const ocrWebhookUrl = config?.OCR_WEBHOOK_URL || config?.ocrWebhookUrl || null;
+    const automationEnabled = Boolean(ocrWebhookUrl);
+    const allowedCategories = new Set([
+        "alimentacion",
+        "transporte",
+        "servicios",
+        "ocio",
+        "salud",
+        "educacion",
+        "ropa",
+        "vivienda",
+        "otros",
+        "general",
+    ]);
+
+    let lastAutomationPayload = null;
+    let lastAutomationProvider = automationEnabled ? "n8n-webhook" : "built-in-ocr";
+    let lastOcrConfidence = null;
 
     try {
         await initProtectedPage();
@@ -15,6 +43,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch (error) {
         showAlert(alertContainer, error.message || "No se pudo cargar la información.", "danger");
     }
+
+    setOcrStatus(
+        automationEnabled
+            ? "Sube una boleta para enviarla a tu automatización N8N. Los campos se completarán automáticamente."
+            : "Sube una boleta para usar el OCR integrado de SmartBudget+. El gasto se registrará automáticamente al finalizar.",
+        "secondary"
+    );
 
     manualForm.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -30,7 +65,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             return;
         }
 
-        manualForm.querySelector("button").disabled = true;
+        const submitButton = manualForm.querySelector("button");
+        submitButton.disabled = true;
 
         try {
             await request("/expenses/", { method: "POST", body: payload });
@@ -45,71 +81,108 @@ document.addEventListener("DOMContentLoaded", async () => {
             console.error(error);
             showAlert(alertContainer, error.message || "No fue posible registrar el gasto.", "danger");
         } finally {
-            manualForm.querySelector("button").disabled = false;
+            submitButton.disabled = false;
+        }
+    });
+
+    processReceiptBtn.addEventListener("click", async () => {
+        if (!receiptFileInput.files?.length) {
+            showAlert(alertContainer, "Selecciona un archivo para procesar.", "warning");
+            receiptFileInput.focus();
+            return;
+        }
+
+        clearOcrInputs();
+        saveOcrExpenseBtn.disabled = true;
+        processReceiptBtn.disabled = true;
+        setOcrStatus("Procesando archivo, esto puede tomar unos segundos…", "info");
+
+        try {
+            const file = receiptFileInput.files[0];
+            const result = automationEnabled
+                ? await runAutomationWebhook(file)
+                : await runBackendOcr(file);
+
+            fillOcrFields(result);
+            syncManualForm(result);
+
+            lastAutomationPayload = result.rawPayload || result.structuredData || result;
+            lastAutomationProvider = result.provider || lastAutomationProvider;
+            lastOcrConfidence = result.ocrConfidence ?? null;
+
+            const hasStructuredData =
+                result.hasStructuredData ?? Boolean(result.description || result.amount || result.rawText);
+
+            if (result.autoRecordedExpense) {
+                setOcrStatus(
+                    "El OCR interno registró el gasto automáticamente. Edita los campos manuales si necesitas corregirlo.",
+                    "success"
+                );
+                showAlert(alertContainer, "La boleta se procesó y guardó automáticamente.", "success");
+            } else {
+                if (!hasStructuredData) {
+                    setOcrStatus(
+                        "La automatización no detectó descripción ni monto. Completa los campos manualmente antes de registrar.",
+                        "warning"
+                    );
+                    showAlert(
+                        alertContainer,
+                        "No se detectaron datos en la boleta. Puedes escribirlos manualmente y luego registrar el gasto.",
+                        "warning"
+                    );
+                } else {
+                    setOcrStatus("Revisa y ajusta los campos antes de registrar el gasto.", "success");
+                    showAlert(
+                        alertContainer,
+                        "Datos detectados desde la automatización. Verifica antes de registrar.",
+                        "info"
+                    );
+                }
+                saveOcrExpenseBtn.disabled = false;
+            }
+        } catch (error) {
+            console.error(error);
+            setOcrStatus(error.message || "No fue posible procesar el archivo.", "danger");
+            showAlert(alertContainer, error.message || "No fue posible procesar el archivo.", "danger");
+        } finally {
+            processReceiptBtn.disabled = false;
         }
     });
 
     ocrForm.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const fileInput = document.getElementById("receiptFile");
-        if (!fileInput.files?.length) {
-            showAlert(alertContainer, "Selecciona un archivo para procesar.", "warning");
+        if (!automationEnabled) {
+            showAlert(
+                alertContainer,
+                "Configura la URL del webhook de N8N para registrar gastos desde esta sección.",
+                "warning"
+            );
             return;
         }
 
-        const formData = new FormData();
-        formData.append("file", fileInput.files[0]);
+        const payload = buildOcrExpensePayload();
+        if (!payload.description || !payload.amount || !payload.category) {
+            showAlert(alertContainer, "Completa descripción, monto y categoría antes de registrar.", "warning");
+            return;
+        }
 
-        ocrForm.querySelector("button").disabled = true;
-        ocrPreview.value = "Procesando archivo...";
+        saveOcrExpenseBtn.disabled = true;
+        setOcrStatus("Guardando gasto con los datos reconocidos…", "info");
 
         try {
-            const response = await request("/expenses/upload", {
-                method: "POST",
-                body: formData,
-                isFormData: true,
-            });
-            const { expense, structured_data } = response;
-            ocrPreview.value = `
-Descripción: ${expense.description}
-Categoría: ${expense.category}
-Fecha: ${expense.expense_date}
-Monto: ${expense.amount}
-
-Texto OCR:
-${structured_data?.texto_normalizado ?? "No disponible"}
-            `.trim();
+            await request("/expenses/", { method: "POST", body: payload });
             const budget = await request("/budgets/current");
             const remainingText = budget
                 ? ` Saldo disponible: ${utils.formatCurrency(budget.remaining, budget.currency || "PEN")}.`
                 : "";
-            showAlert(
-                alertContainer,
-                `La boleta fue procesada y registrada automáticamente.${remainingText}`,
-                "success"
-            );
-            fileInput.value = "";
-            if (structured_data) {
-                if (structured_data.descripcion) {
-                    manualForm.description.value = structured_data.descripcion;
-                }
-                if (structured_data.monto) {
-                    manualForm.amount.value = structured_data.monto;
-                }
-                if (structured_data.fecha) {
-                    manualForm.expense_date.value = structured_data.fecha;
-                }
-                if (structured_data.categoria) {
-                    manualForm.category.value = structured_data.categoria.toLowerCase();
-                }
-            }
+            showAlert(alertContainer, `Gasto OCR registrado correctamente.${remainingText}`, "success");
+            resetOcrFormState();
             await loadExpenses();
         } catch (error) {
             console.error(error);
-            showAlert(alertContainer, error.message || "No fue posible procesar el archivo.", "danger");
-            ocrPreview.value = "";
-        } finally {
-            ocrForm.querySelector("button").disabled = false;
+            saveOcrExpenseBtn.disabled = false;
+            setOcrStatus(error.message || "No fue posible guardar el gasto.", "danger");
+            showAlert(alertContainer, error.message || "No fue posible guardar el gasto.", "danger");
         }
     });
 
@@ -146,5 +219,248 @@ ${structured_data?.texto_normalizado ?? "No disponible"}
             console.error(error);
             showAlert(alertContainer, "No fue posible cargar los gastos.", "danger");
         }
+    }
+
+    async function runAutomationWebhook(file) {
+        if (!ocrWebhookUrl) {
+            throw new Error("No se encontró la URL del webhook de automatización.");
+        }
+
+        const formData = new FormData();
+        formData.append("file", file, file.name);
+
+        const response = await fetch(ocrWebhookUrl, {
+            method: "POST",
+            body: formData,
+        });
+
+        const raw = await response.text();
+        let data;
+        try {
+            data = raw ? JSON.parse(raw) : {};
+        } catch (error) {
+            data = raw ? { raw } : {};
+        }
+
+        if (!response.ok) {
+            const message =
+                typeof data === "string"
+                    ? data
+                    : data?.detail || data?.message || data?.error || "La automatización devolvió un error.";
+            throw new Error(message);
+        }
+
+        const normalized = normalizeAutomationPayload(data);
+        normalized.hasStructuredData = Boolean(normalized.description || normalized.amount);
+        return normalized;
+    }
+
+    async function runBackendOcr(file) {
+        const formData = new FormData();
+        formData.append("file", file, file.name);
+        const response = await request("/expenses/upload", {
+            method: "POST",
+            body: formData,
+            isFormData: true,
+        });
+
+        const { expense, structured_data, ocr_confidence } = response;
+        return {
+            description: structured_data?.descripcion || expense?.description || "",
+            amount: structured_data?.monto || expense?.amount || "",
+            category: normalizeCategory(structured_data?.categoria) || expense?.category || "general",
+            expenseDate: structured_data?.fecha || expense?.expense_date,
+            rawText: structured_data?.texto_normalizado || structured_data?.texto || "",
+            currency: expense?.currency,
+            structuredData: structured_data,
+            provider: "built-in-ocr",
+            ocrConfidence: ocr_confidence,
+            hasStructuredData: true,
+            autoRecordedExpense: expense,
+            rawPayload: response,
+        };
+    }
+
+    function normalizeAutomationPayload(payload) {
+        const source = Array.isArray(payload) ? payload[0] : payload;
+        const candidate =
+            typeof source?.data === "object" && !Array.isArray(source.data) ? source.data : source?.body ?? source;
+
+        const valueFrom = (...keys) => {
+            for (const key of keys) {
+                const value = readNested(candidate, key) ?? readNested(source, key);
+                if (value !== undefined && value !== null && value !== "") {
+                    return value;
+                }
+            }
+            return undefined;
+        };
+
+        const description = valueFrom("description", "descripcion", "data.description");
+        const amount = toNumber(valueFrom("amount", "monto", "total"));
+        const category = normalizeCategory(valueFrom("category", "categoria"));
+        const expenseDate = normalizeDate(valueFrom("expense_date", "fecha", "date"));
+        const rawText = valueFrom(
+            "raw_text",
+            "texto",
+            "texto_normalizado",
+            "ocr_text",
+            "full_text",
+            "ocr.raw",
+            "result"
+        );
+        const currency = valueFrom("currency", "moneda");
+
+        return {
+            description: description || "",
+            amount: amount || "",
+            category: category || "general",
+            expenseDate,
+            rawText: typeof rawText === "string" ? rawText : JSON.stringify(rawText ?? {}, null, 2),
+            currency,
+            provider: "n8n-webhook",
+            rawPayload: payload,
+        };
+    }
+
+    function readNested(obj, path) {
+        if (!obj || typeof obj !== "object" || !path) return undefined;
+        const segments = path.split(".");
+        let current = obj;
+        for (const segment of segments) {
+            if (current && Object.prototype.hasOwnProperty.call(current, segment)) {
+                current = current[segment];
+            } else {
+                return undefined;
+            }
+        }
+        return current;
+    }
+
+    function normalizeCategory(value) {
+        if (!value) return "";
+        const normalized = value
+            .toString()
+            .trim()
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "");
+        if (allowedCategories.has(normalized)) {
+            return normalized;
+        }
+        const aliases = {
+            comida: "alimentacion",
+            supermercado: "alimentacion",
+            market: "alimentacion",
+            transporte_publico: "transporte",
+            gasolina: "transporte",
+            luz: "servicios",
+            agua: "servicios",
+            entretenimiento: "ocio",
+            medicina: "salud",
+            doctor: "salud",
+            colegio: "educacion",
+            universidad: "educacion",
+        };
+        return aliases[normalized] || "";
+    }
+
+    function toNumber(value) {
+        if (value === undefined || value === null || value === "") return undefined;
+        if (typeof value === "number" && !Number.isNaN(value)) return value;
+        const cleaned = value.toString().replace(/[^\d,.-]/g, "").replace(",", ".");
+        const parsed = Number(cleaned);
+        return Number.isNaN(parsed) ? undefined : parsed;
+    }
+
+    function normalizeDate(value) {
+        if (!value) return undefined;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return undefined;
+        return parsed.toISOString().slice(0, 10);
+    }
+
+    function fillOcrFields(data) {
+        if (data.description) {
+            ocrDescription.value = data.description;
+        }
+        if (data.amount !== undefined && data.amount !== null && data.amount !== "") {
+            ocrAmount.value = data.amount;
+        }
+        if (data.category) {
+            ocrCategory.value = data.category;
+        }
+        if (data.expenseDate) {
+            ocrExpenseDate.value = data.expenseDate;
+        }
+        if (typeof data.rawText === "string") {
+            ocrRawText.value = data.rawText;
+        }
+    }
+
+    function syncManualForm(data) {
+        if (data.description) {
+            manualForm.description.value = data.description;
+        }
+        if (data.amount) {
+            manualForm.amount.value = data.amount;
+        }
+        if (data.category && allowedCategories.has(data.category)) {
+            manualForm.category.value = data.category;
+        }
+        if (data.expenseDate) {
+            manualForm.expense_date.value = data.expenseDate;
+        }
+    }
+
+    function buildOcrExpensePayload() {
+        const extra = {
+            ocr_provider: lastAutomationProvider,
+            ocr_confidence: lastOcrConfidence,
+            ocr_raw_text: ocrRawText.value.trim() || undefined,
+            ocr_payload: lastAutomationPayload,
+        };
+        Object.keys(extra).forEach((key) => {
+            if (extra[key] === undefined || extra[key] === null || extra[key] === "") {
+                delete extra[key];
+            }
+        });
+
+        return {
+            description: ocrDescription.value.trim(),
+            amount: Number(ocrAmount.value),
+            category: ocrCategory.value || "general",
+            expense_date: ocrExpenseDate.value || undefined,
+            source: "ocr",
+            extra_data: Object.keys(extra).length ? extra : undefined,
+        };
+    }
+
+    function resetOcrFormState() {
+        clearOcrInputs();
+        receiptFileInput.value = "";
+        saveOcrExpenseBtn.disabled = true;
+        setOcrStatus(
+            "Sube otra boleta para volver a completar los campos automáticamente.",
+            "secondary"
+        );
+        lastAutomationPayload = null;
+        lastOcrConfidence = null;
+    }
+
+    function setOcrStatus(message, tone) {
+        if (!ocrStatus) return;
+        const color = tone || "secondary";
+        ocrStatus.className = `small text-${color}`;
+        ocrStatus.textContent = message;
+    }
+
+    function clearOcrInputs() {
+        ocrDescription.value = "";
+        ocrAmount.value = "";
+        ocrCategory.value = "";
+        ocrExpenseDate.value = "";
+        ocrRawText.value = "";
     }
 });

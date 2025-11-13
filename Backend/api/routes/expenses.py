@@ -23,6 +23,9 @@ def create_manual_expense(
     current_user: models.User = Depends(get_current_user),
 ):
     expense_date = payload.expense_date or dt.date.today()
+    source = payload.source or ExpenseSource.MANUAL
+    currency = payload.currency or current_user.default_currency
+    extra_data = payload.extra_data or None
     expense = expenses_service.create_expense(
         db,
         user=current_user,
@@ -30,8 +33,10 @@ def create_manual_expense(
         amount=payload.amount,
         category=payload.category,
         expense_date=expense_date,
-        source=ExpenseSource.MANUAL,
-        currency=payload.currency or current_user.default_currency,
+        source=source,
+        currency=currency,
+        extra_data=extra_data,
+        ocr_confidence=payload.ocr_confidence,
     )
     return expense
 
