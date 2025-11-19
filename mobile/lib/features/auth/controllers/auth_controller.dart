@@ -12,13 +12,11 @@ import '../../home/controllers/budget_controller.dart';
 import '../../home/providers.dart';
 
 class AuthController extends AsyncNotifier<User?> {
-  late final AuthRepository _repository;
-  late final TokenStorage _storage;
+  AuthRepository get _repository => ref.read(authRepositoryProvider);
+  TokenStorage get _storage => ref.read(tokenStorageProvider);
 
   @override
   FutureOr<User?> build() async {
-    _repository = ref.read(authRepositoryProvider);
-    _storage = ref.read(tokenStorageProvider);
     final token = await _storage.readAccessToken();
     if (token == null) {
       return null;

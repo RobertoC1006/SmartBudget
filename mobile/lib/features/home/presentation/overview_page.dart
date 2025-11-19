@@ -55,7 +55,15 @@ class OverviewPage extends ConsumerWidget {
                   subtitle: 'Crea tu presupuesto mensual y habilita alertas inteligentes.',
                 );
               }
-              final progress = (budget.spent / budget.amount).clamp(0, 1).toDouble();
+              final progress = budget.amount == 0 ? 0.0 : (budget.spent / budget.amount).clamp(0, 1).toDouble();
+              final remainingRatio =
+                  budget.amount == 0 ? 0.0 : (budget.remaining / budget.amount).clamp(-10, 10).toDouble();
+              final isOverspent = budget.remaining < 0;
+              final remainingDescription = budget.amount == 0
+                  ? 'Sin presupuesto base'
+                  : isOverspent
+                      ? 'Te excediste ${(remainingRatio.abs() * 100).toStringAsFixed(0)}% del presupuesto'
+                      : 'Te queda ${(remainingRatio * 100).toStringAsFixed(0)}% del presupuesto';
               return Card(
                 child: Padding(
                   padding: const EdgeInsets.all(20),
@@ -81,10 +89,9 @@ class OverviewPage extends ConsumerWidget {
                             child: _BudgetStatCard(
                               title: 'Saldo disponible',
                               value: Formatters.currency(budget.remaining, currency: budget.currency),
-                              description: budget.amount == 0
-                                  ? 'Sin presupuesto base'
-                                  : '${((budget.remaining / budget.amount) * 100).clamp(-999, 999).toStringAsFixed(0)}% del presupuesto',
+                              description: remainingDescription,
                               highlight: true,
+                              accentColor: isOverspent ? Colors.red : SBColors.primary,
                             ),
                           ),
                         ],
@@ -240,12 +247,14 @@ class _BudgetStatCard extends StatelessWidget {
     required this.value,
     required this.description,
     this.highlight = false,
+    this.accentColor,
   });
 
   final String title;
   final String value;
   final String description;
   final bool highlight;
+  final Color? accentColor;
 
   @override
   Widget build(BuildContext context) {
@@ -253,10 +262,14 @@ class _BudgetStatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: highlight ? SBColors.primary.withValues(alpha: 0.12) : SBColors.light,
+        color: highlight
+            ? (accentColor ?? SBColors.primary).withValues(alpha: 0.12)
+            : SBColors.light,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: highlight ? SBColors.primary.withValues(alpha: 0.35) : SBColors.light,
+          color: highlight
+              ? (accentColor ?? SBColors.primary).withValues(alpha: 0.35)
+              : SBColors.light,
         ),
       ),
       child: Column(
@@ -265,7 +278,7 @@ class _BudgetStatCard extends StatelessWidget {
           Text(
             title,
             style: textTheme.labelMedium?.copyWith(
-              color: highlight ? SBColors.dark : SBColors.muted,
+              color: highlight ? (accentColor ?? SBColors.dark) : SBColors.muted,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -274,14 +287,16 @@ class _BudgetStatCard extends StatelessWidget {
             value,
             style: textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
-              color: highlight ? SBColors.dark : SBColors.dark,
+              color: highlight ? (accentColor ?? SBColors.dark) : SBColors.dark,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             description,
             style: textTheme.bodySmall?.copyWith(
-              color: highlight ? SBColors.dark.withValues(alpha: 0.7) : SBColors.muted,
+              color: highlight
+                  ? (accentColor ?? SBColors.dark).withValues(alpha: 0.7)
+                  : SBColors.muted,
             ),
           ),
         ],

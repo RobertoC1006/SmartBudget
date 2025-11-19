@@ -15,12 +15,13 @@ class ExpenseRepository {
   final Dio _dio;
   final RuntimeConfig _config;
 
-  Future<List<Expense>> fetchExpenses({ExpenseCategory? category}) async {
+  Future<List<Expense>> fetchExpenses({ExpenseCategory? category, String? budgetId}) async {
     try {
       final response = await _dio.get(
         '/expenses',
         queryParameters: {
           if (category != null) 'category': category.value,
+          if (budgetId != null) 'budget_id': budgetId,
         },
       );
       final data = response.data as List<dynamic>;

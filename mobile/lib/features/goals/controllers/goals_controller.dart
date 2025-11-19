@@ -6,11 +6,10 @@ import '../../../data/models/goal.dart';
 import '../../../data/repositories/goal_repository.dart';
 
 class GoalsController extends AsyncNotifier<List<Goal>> {
-  late final GoalRepository _repository;
+  GoalRepository get _repository => ref.read(goalRepositoryProvider);
 
   @override
   FutureOr<List<Goal>> build() async {
-    _repository = ref.read(goalRepositoryProvider);
     return _repository.fetchGoals();
   }
 

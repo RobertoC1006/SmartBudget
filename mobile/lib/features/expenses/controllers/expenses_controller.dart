@@ -7,25 +7,34 @@ import '../../../data/repositories/expense_repository.dart';
 
 class ExpensesController extends AsyncNotifier<List<Expense>> {
   ExpenseCategory? _filter;
-  late final ExpenseRepository _repository;
+  String? _budgetId;
+  ExpenseRepository get _repository => ref.read(expenseRepositoryProvider);
 
   ExpenseCategory? get filter => _filter;
+  String? get budgetId => _budgetId;
 
   @override
   FutureOr<List<Expense>> build() async {
-    _repository = ref.read(expenseRepositoryProvider);
-    return _repository.fetchExpenses();
+    return _repository.fetchExpenses(budgetId: _budgetId);
   }
 
   Future<void> load({ExpenseCategory? category}) async {
-    _filter = category;
+    _filter = category ?? _filter;
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() => _repository.fetchExpenses(category: _filter));
+    state = await AsyncValue.guard(
+      () => _repository.fetchExpenses(category: _filter, budgetId: _budgetId),
+    );
   }
 
   Future<void> createExpense(ExpenseDraft draft) async {
     await _repository.createExpense(draft);
-    await load(category: _filter);
+    await load();
+  }
+
+  Future<void> setBudgetFilter(String? budgetId) async {
+    if (_budgetId == budgetId) return;
+    _budgetId = budgetId;
+    await load();
   }
 }
 

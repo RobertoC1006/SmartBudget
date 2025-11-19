@@ -6,11 +6,10 @@ import '../../../data/models/budget.dart';
 import '../../../data/repositories/budget_repository.dart';
 
 class BudgetController extends AsyncNotifier<Budget?> {
-  late final BudgetRepository _repository;
+  BudgetRepository get _repository => ref.read(budgetRepositoryProvider);
 
   @override
   FutureOr<Budget?> build() async {
-    _repository = ref.read(budgetRepositoryProvider);
     return _repository.currentBudget();
   }
 

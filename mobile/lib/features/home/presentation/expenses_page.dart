@@ -13,6 +13,7 @@ import '../../../widgets/async_value_widget.dart';
 import '../../expenses/controllers/expenses_controller.dart';
 import '../../expenses/services/receipt_picker.dart';
 import '../../home/controllers/budget_controller.dart';
+import '../../home/providers.dart';
 
 class ExpensesPage extends ConsumerStatefulWidget {
   const ExpensesPage({super.key});
@@ -38,6 +39,8 @@ class _ExpensesPageState extends ConsumerState<ExpensesPage> {
   bool _processingOcr = false;
   bool _savingOcr = false;
   OcrScanResult? _scanResult;
+  String? _appliedBudgetId;
+  DateTime? _budgetDefaultDate;
 
   @override
   void dispose() {
@@ -53,6 +56,29 @@ class _ExpensesPageState extends ConsumerState<ExpensesPage> {
     final expensesValue = ref.watch(expensesControllerProvider);
     final picker = ref.watch(receiptPickerProvider);
     final budgetValue = ref.watch(budgetControllerProvider);
+
+    budgetValue.whenData((budget) {
+      final budgetId = budget?.id;
+      if (budgetId != null && budgetId != _appliedBudgetId) {
+        final selectedBudget = budget;
+        if (selectedBudget == null) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          await ref.read(expensesControllerProvider.notifier).setBudgetFilter(budgetId);
+          if (mounted) {
+            setState(() {
+              _appliedBudgetId = budgetId;
+              _budgetDefaultDate = DateTime(selectedBudget.year, selectedBudget.month, 1);
+              _manualDate = _budgetDefaultDate;
+              _ocrDate = _budgetDefaultDate;
+            });
+          }
+        });
+      } else if (budget != null && _budgetDefaultDate == null) {
+        setState(() {
+          _budgetDefaultDate = DateTime(budget.year, budget.month, 1);
+        });
+      }
+    });
 
     return RefreshIndicator(
       onRefresh: () => ref.read(expensesControllerProvider.notifier).load(),
@@ -103,7 +129,7 @@ class _ExpensesPageState extends ConsumerState<ExpensesPage> {
                     ),
                     const SizedBox(height: 12),
                     GestureDetector(
-                      onTap: () => _pickDate().then((value) {
+                      onTap: () => _pickDate(_manualDate ?? _budgetDefaultDate).then((value) {
                         if (value != null) {
                           setState(() => _manualDate = value);
                         }
@@ -111,7 +137,7 @@ class _ExpensesPageState extends ConsumerState<ExpensesPage> {
                       child: InputDecorator(
                         decoration: const InputDecoration(labelText: 'Fecha (opcional)'),
                         child: Text(
-                          _manualDate != null ? DateFormat.yMMMd('es_PE').format(_manualDate!) : 'Hoy',
+                          DateFormat.yMMMd('es_PE').format(_manualDate ?? _budgetDefaultDate ?? DateTime.now()),
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ),
@@ -200,13 +226,15 @@ class _ExpensesPageState extends ConsumerState<ExpensesPage> {
                   ),
                   const SizedBox(height: 12),
                   GestureDetector(
-                    onTap: () => _pickDate().then((value) {
+                    onTap: () => _pickDate(_ocrDate ?? _budgetDefaultDate).then((value) {
                       if (value != null) setState(() => _ocrDate = value);
                     }),
                     child: InputDecorator(
                       decoration: const InputDecoration(labelText: 'Fecha OCR'),
                       child: Text(
-                        _ocrDate != null ? DateFormat.yMMMd('es_PE').format(_ocrDate!) : 'Detectada automáticamente',
+                        _ocrDate != null
+                            ? DateFormat.yMMMd('es_PE').format(_ocrDate!)
+                            : DateFormat.yMMMd('es_PE').format(_budgetDefaultDate ?? DateTime.now()),
                       ),
                     ),
                   ),
@@ -330,11 +358,11 @@ class _ExpensesPageState extends ConsumerState<ExpensesPage> {
         description: _manualDescription.text.trim(),
         amount: double.parse(_manualAmount.text),
         category: _manualCategory,
-        expenseDate: _manualDate ?? DateTime.now(),
+        expenseDate: _manualDate ?? _budgetDefaultDate ?? DateTime.now(),
         source: ExpenseSource.manual,
       );
       await ref.read(expensesControllerProvider.notifier).createExpense(draft);
-      await ref.read(budgetControllerProvider.notifier).refresh();
+      await _refreshBudgetContext();
       if (mounted) {
         _manualDescription.clear();
         _manualAmount.clear();
@@ -411,7 +439,7 @@ class _ExpensesPageState extends ConsumerState<ExpensesPage> {
         description: description,
         amount: amount,
         category: _ocrCategory,
-        expenseDate: _ocrDate ?? DateTime.now(),
+        expenseDate: _ocrDate ?? _budgetDefaultDate ?? DateTime.now(),
         source: ExpenseSource.ocr,
         extraData: {
           if (_scanResult?.provider != null) 'ocr_provider': _scanResult!.provider,
@@ -421,7 +449,7 @@ class _ExpensesPageState extends ConsumerState<ExpensesPage> {
         ocrConfidence: _scanResult?.ocrConfidence,
       );
       await ref.read(expensesControllerProvider.notifier).createExpense(draft);
-      await ref.read(budgetControllerProvider.notifier).refresh();
+      await _refreshBudgetContext();
       setState(() {
         _scanResult = null;
         _ocrDescription.clear();
@@ -445,14 +473,28 @@ class _ExpensesPageState extends ConsumerState<ExpensesPage> {
     }
   }
 
-  Future<DateTime?> _pickDate() async {
-    final now = DateTime.now();
+  Future<DateTime?> _pickDate(DateTime? initial) async {
+    final base = initial ?? _budgetDefaultDate ?? DateTime.now();
+    final firstDate = _budgetDefaultDate != null
+        ? DateTime(_budgetDefaultDate!.year, _budgetDefaultDate!.month, 1)
+        : DateTime(base.year - 1, 1, 1);
+    final lastDate = _budgetDefaultDate != null
+        ? DateTime(_budgetDefaultDate!.year, _budgetDefaultDate!.month + 1, 0)
+        : DateTime(base.year + 1, 12, 31);
     return showDatePicker(
       context: context,
-      initialDate: now,
-      firstDate: DateTime(now.year - 1),
-      lastDate: DateTime(now.year + 1),
+      initialDate: base,
+      firstDate: firstDate,
+      lastDate: lastDate,
       locale: const Locale('es', 'PE'),
     );
+  }
+
+  Future<void> _refreshBudgetContext() async {
+    await ref.read(budgetControllerProvider.notifier).refresh();
+    ref.invalidate(alertsProvider);
+    await ref.read(alertsProvider.future);
+    ref.invalidate(smartScoreProvider);
+    await ref.read(smartScoreProvider.future);
   }
 }

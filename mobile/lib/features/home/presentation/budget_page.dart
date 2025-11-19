@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/formatters.dart';
@@ -15,6 +15,20 @@ class BudgetPage extends ConsumerStatefulWidget {
 }
 
 class _BudgetPageState extends ConsumerState<BudgetPage> {
+  static const _monthNames = [
+    'Enero',
+    'Febrero',
+    'Marzo',
+    'Abril',
+    'Mayo',
+    'Junio',
+    'Julio',
+    'Agosto',
+    'Septiembre',
+    'Octubre',
+    'Noviembre',
+    'Diciembre',
+  ];
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _nameController = TextEditingController(text: 'Presupuesto mensual');
@@ -73,7 +87,7 @@ class _BudgetPageState extends ConsumerState<BudgetPage> {
                       ),
                       const SizedBox(height: 12),
                       _BudgetSummaryRow(
-                        label: 'Período',
+                        label: 'PerÃ­odo',
                         value: '${budget.month}/${budget.year}',
                       ),
                       _BudgetSummaryRow(
@@ -122,7 +136,7 @@ class _BudgetPageState extends ConsumerState<BudgetPage> {
                   validator: (value) {
                     if (value == null || value.isEmpty) return 'Ingresa un monto';
                     final parsed = double.tryParse(value);
-                    if (parsed == null || parsed <= 0) return 'Monto inválido';
+                    if (parsed == null || parsed <= 0) return 'Monto invÃ¡lido';
                     return null;
                   },
                 ),
@@ -136,7 +150,7 @@ class _BudgetPageState extends ConsumerState<BudgetPage> {
                           12,
                           (index) => DropdownMenuItem(
                             value: index + 1,
-                            child: Text('Mes ${index + 1}'),
+                            child: Text(_monthNames[index]),
                           ),
                         ),
                         onChanged: (value) => setState(() => _month = value ?? _month),
@@ -155,7 +169,7 @@ class _BudgetPageState extends ConsumerState<BudgetPage> {
                           ),
                         ),
                         onChanged: (value) => setState(() => _year = value ?? _year),
-                        decoration: const InputDecoration(labelText: 'Año'),
+                        decoration: const InputDecoration(labelText: 'AÃ±o'),
                       ),
                     ),
                   ],
@@ -290,3 +304,4 @@ class _BudgetSummaryPlaceholder extends StatelessWidget {
     );
   }
 }
+
