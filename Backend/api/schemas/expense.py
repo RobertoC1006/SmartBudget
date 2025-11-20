@@ -36,8 +36,3 @@ class ExpenseRead(BaseModel):
         from_attributes = True
 
 
-class OCRExpenseResponse(BaseModel):
-    expense: ExpenseRead
-    ocr_confidence: Optional[float]
-    structured_data: dict
-

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from Backend.api.dependencies import get_current_user
@@ -54,30 +54,3 @@ def list_my_expenses(
     )
     return list(expenses)
 
-
-@router.post("/upload", response_model=expense_schema.OCRExpenseResponse)
-async def upload_receipt(
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
-    data = await file.read()
-    if not data:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El archivo proporcionado está vacío.")
-    try:
-        expense, ocr_result, structured = expenses_service.create_expense_from_ocr(
-            db,
-            user=current_user,
-            filename=file.filename or "comprobante",
-            data=data,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
-
-    return expense_schema.OCRExpenseResponse(
-        expense=expense,
-        ocr_confidence=ocr_result.confidence,
-        structured_data=structured,
-    )

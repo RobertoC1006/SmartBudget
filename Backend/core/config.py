@@ -5,22 +5,8 @@ from __future__ import annotations
 import pathlib
 from functools import lru_cache
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
-class StorageSettings(BaseModel):
-    base_path: pathlib.Path = Field(default=pathlib.Path("storage"))
-    receipts_subdir: str = Field(default="receipts")
-    temp_subdir: str = Field(default="tmp")
-
-    @property
-    def receipts_path(self) -> pathlib.Path:
-        return self.base_path / self.receipts_subdir
-
-    @property
-    def temp_path(self) -> pathlib.Path:
-        return self.base_path / self.temp_subdir
 
 
 class Settings(BaseSettings):
@@ -40,12 +26,6 @@ class Settings(BaseSettings):
     low_budget_threshold: float = Field(default=0.25)
     alert_percentage_variation: float = Field(default=0.3)
 
-    ocr_language: str = Field(default="spa")
-    ocr_confidence_threshold: float = Field(default=0.65)
-    ocr_enabled: bool = Field(default=True)
-    tesseract_cmd: str | None = Field(default=None)
-    storage: StorageSettings = Field(default_factory=StorageSettings)
-
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -55,9 +35,6 @@ class Settings(BaseSettings):
 
     def ensure_directories(self) -> None:
         """Crea carpetas necesarias para almacenamiento local."""
-        self.storage.base_path.mkdir(parents=True, exist_ok=True)
-        self.storage.receipts_path.mkdir(parents=True, exist_ok=True)
-        self.storage.temp_path.mkdir(parents=True, exist_ok=True)
         if self.database_url.startswith("sqlite:///"):
             db_path = pathlib.Path(self.database_url.replace("sqlite:///", "", 1))
             if not db_path.is_absolute():

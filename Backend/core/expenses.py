@@ -11,9 +11,6 @@ from sqlalchemy.orm import Session
 
 from Backend.core import budgets as budgets_service
 from Backend.core.enums import ExpenseCategory, ExpenseSource
-from Backend.core.limpiador_datos import estructurar_texto
-from Backend.core.ocr import OCRResult, read_bytes
-from Backend.core.storage import save_receipt_file
 from Backend.db import models
 
 
@@ -98,43 +95,3 @@ def delete_expense(db: Session, expense: models.Expense) -> None:
     db.commit()
 
 
-def create_expense_from_ocr(
-    db: Session,
-    *,
-    user: models.User,
-    filename: str,
-    data: bytes,
-    overrides: dict | None = None,
-) -> tuple[models.Expense, OCRResult, dict]:
-    overrides = overrides or {}
-    try:
-        ocr_result = read_bytes(filename, data)
-    except Exception as exc:  # pylint: disable=broad-except
-        raise RuntimeError(f"No se pudo procesar el archivo con OCR: {exc}") from exc
-    structured = estructurar_texto(ocr_result.text)
-
-    description = overrides.get("description") or structured.get("descripcion") or "Gasto identificado"
-    category_value = overrides.get("category") or structured.get("categoria") or ExpenseCategory.GENERAL.value
-    category = ExpenseCategory(category_value)
-    amount = overrides.get("amount") or structured.get("monto")
-    if amount is None:
-        raise ValueError("No se pudo inferir el monto del gasto.")
-    expense_date_raw = overrides.get("expense_date") or structured.get("fecha")
-    expense_date = dt.date.fromisoformat(expense_date_raw) if expense_date_raw else dt.date.today()
-
-    stored_path = save_receipt_file(data, filename)
-
-    expense = create_expense(
-        db,
-        user=user,
-        description=description,
-        amount=_to_decimal(amount),
-        category=category,
-        expense_date=expense_date,
-        source=ExpenseSource.OCR,
-        currency=user.default_currency,
-        extra_data={"ocr_text": ocr_result.text, "structured": structured, "overrides": overrides},
-        receipt_path=str(stored_path),
-        ocr_confidence=ocr_result.confidence,
-    )
-    return expense, ocr_result, structured

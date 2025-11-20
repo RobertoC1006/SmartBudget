@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", async () => {
+﻿document.addEventListener("DOMContentLoaded", async () => {
     if (!window.SB) return;
     const { initProtectedPage, request, utils, showAlert, config } = window.SB;
 
@@ -19,7 +19,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const ocrStatus = document.getElementById("ocrStatus");
 
     const ocrWebhookUrl = config?.OCR_WEBHOOK_URL || config?.ocrWebhookUrl || null;
-    const automationEnabled = Boolean(ocrWebhookUrl);
     const allowedCategories = new Set([
         "alimentacion",
         "transporte",
@@ -34,22 +33,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     ]);
 
     let lastAutomationPayload = null;
-    let lastAutomationProvider = automationEnabled ? "n8n-webhook" : "built-in-ocr";
+    let lastAutomationProvider = "n8n-webhook";
     let lastOcrConfidence = null;
 
     try {
         await initProtectedPage();
         await loadExpenses();
     } catch (error) {
-        showAlert(alertContainer, error.message || "No se pudo cargar la información.", "danger");
+        showAlert(alertContainer, error.message || "No se pudo cargar la informaciÃ³n.", "danger");
     }
 
-    setOcrStatus(
-        automationEnabled
-            ? "Sube una boleta para enviarla a tu automatización N8N. Los campos se completarán automáticamente."
-            : "Sube una boleta para usar el OCR integrado de SmartBudget+. El gasto se registrará automáticamente al finalizar.",
-        "secondary"
-    );
+    if (!ocrWebhookUrl) {
+        setOcrStatus(
+            "Configura la URL del webhook de N8N para habilitar el escaneo de boletas.",
+            "danger"
+        );
+    } else {
+        setOcrStatus(
+            "Sube una boleta para enviarla a tu automatización N8N. Los campos se completarán automáticamente.",
+            "secondary"
+        );
+    }
 
     manualForm.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -61,7 +65,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         };
 
         if (!payload.description || !payload.amount || !payload.category) {
-            showAlert(alertContainer, "Completa descripción, monto y categoría.", "warning");
+            showAlert(alertContainer, "Completa descripciÃ³n, monto y categorÃ­a.", "warning");
             return;
         }
 
@@ -91,17 +95,23 @@ document.addEventListener("DOMContentLoaded", async () => {
             receiptFileInput.focus();
             return;
         }
+        if (!ocrWebhookUrl) {
+            showAlert(
+                alertContainer,
+                "Configura la URL del webhook de N8N para poder procesar boletas desde esta sección.",
+                "warning"
+            );
+            return;
+        }
 
         clearOcrInputs();
         saveOcrExpenseBtn.disabled = true;
         processReceiptBtn.disabled = true;
-        setOcrStatus("Procesando archivo, esto puede tomar unos segundos…", "info");
+        setOcrStatus("Procesando archivo, esto puede tomar unos segundosâ€¦", "info");
 
         try {
             const file = receiptFileInput.files[0];
-            const result = automationEnabled
-                ? await runAutomationWebhook(file)
-                : await runBackendOcr(file);
+            const result = await runAutomationWebhook(file);
 
             fillOcrFields(result);
             syncManualForm(result);
@@ -113,32 +123,23 @@ document.addEventListener("DOMContentLoaded", async () => {
             const hasStructuredData =
                 result.hasStructuredData ?? Boolean(result.description || result.amount || result.rawText);
 
-            if (result.autoRecordedExpense) {
+            if (!hasStructuredData) {
                 setOcrStatus(
-                    "El OCR interno registró el gasto automáticamente. Edita los campos manuales si necesitas corregirlo.",
-                    "success"
+                    "La automatización no detectó descripción ni monto. Completa los campos manualmente antes de registrar.",
+                    "warning"
                 );
-                showAlert(alertContainer, "La boleta se procesó y guardó automáticamente.", "success");
+                showAlert(
+                    alertContainer,
+                    "No se detectaron datos en la boleta. Puedes escribirlos manualmente y luego registrar el gasto.",
+                    "warning"
+                );
             } else {
-                if (!hasStructuredData) {
-                    setOcrStatus(
-                        "La automatización no detectó descripción ni monto. Completa los campos manualmente antes de registrar.",
-                        "warning"
-                    );
-                    showAlert(
-                        alertContainer,
-                        "No se detectaron datos en la boleta. Puedes escribirlos manualmente y luego registrar el gasto.",
-                        "warning"
-                    );
-                } else {
-                    setOcrStatus("Revisa y ajusta los campos antes de registrar el gasto.", "success");
-                    showAlert(
-                        alertContainer,
-                        "Datos detectados desde la automatización. Verifica antes de registrar.",
-                        "info"
-                    );
-                }
-                saveOcrExpenseBtn.disabled = false;
+                setOcrStatus("Revisa y ajusta los campos antes de registrar el gasto.", "success");
+                showAlert(
+                    alertContainer,
+                    "Datos detectados desde la automatización. Verifica antes de registrar.",
+                    "info"
+                );
             }
         } catch (error) {
             console.error(error);
@@ -151,10 +152,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     ocrForm.addEventListener("submit", async (event) => {
         event.preventDefault();
-        if (!automationEnabled) {
+        if (!ocrWebhookUrl) {
             showAlert(
                 alertContainer,
-                "Configura la URL del webhook de N8N para registrar gastos desde esta sección.",
+                "Configura la URL del webhook de N8N para registrar gastos desde esta secciÃ³n.",
                 "warning"
             );
             return;
@@ -162,12 +163,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const payload = buildOcrExpensePayload();
         if (!payload.description || !payload.amount || !payload.category) {
-            showAlert(alertContainer, "Completa descripción, monto y categoría antes de registrar.", "warning");
+            showAlert(alertContainer, "Completa descripciÃ³n, monto y categorÃ­a antes de registrar.", "warning");
             return;
         }
 
         saveOcrExpenseBtn.disabled = true;
-        setOcrStatus("Guardando gasto con los datos reconocidos…", "info");
+        setOcrStatus("Guardando gasto con los datos reconocidosâ€¦", "info");
 
         try {
             await request("/expenses/", { method: "POST", body: payload });
@@ -223,7 +224,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     async function runAutomationWebhook(file) {
         if (!ocrWebhookUrl) {
-            throw new Error("No se encontró la URL del webhook de automatización.");
+            throw new Error("No se encontrÃ³ la URL del webhook de automatizaciÃ³n.");
         }
 
         const formData = new FormData();
@@ -246,39 +247,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             const message =
                 typeof data === "string"
                     ? data
-                    : data?.detail || data?.message || data?.error || "La automatización devolvió un error.";
+                    : data?.detail || data?.message || data?.error || "La automatizaciÃ³n devolviÃ³ un error.";
             throw new Error(message);
         }
 
         const normalized = normalizeAutomationPayload(data);
         normalized.hasStructuredData = Boolean(normalized.description || normalized.amount);
         return normalized;
-    }
-
-    async function runBackendOcr(file) {
-        const formData = new FormData();
-        formData.append("file", file, file.name);
-        const response = await request("/expenses/upload", {
-            method: "POST",
-            body: formData,
-            isFormData: true,
-        });
-
-        const { expense, structured_data, ocr_confidence } = response;
-        return {
-            description: structured_data?.descripcion || expense?.description || "",
-            amount: structured_data?.monto || expense?.amount || "",
-            category: normalizeCategory(structured_data?.categoria) || expense?.category || "general",
-            expenseDate: structured_data?.fecha || expense?.expense_date,
-            rawText: structured_data?.texto_normalizado || structured_data?.texto || "",
-            currency: expense?.currency,
-            structuredData: structured_data,
-            provider: "built-in-ocr",
-            ocrConfidence: ocr_confidence,
-            hasStructuredData: true,
-            autoRecordedExpense: expense,
-            rawPayload: response,
-        };
     }
 
     function normalizeAutomationPayload(payload) {
@@ -442,7 +417,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         receiptFileInput.value = "";
         saveOcrExpenseBtn.disabled = true;
         setOcrStatus(
-            "Sube otra boleta para volver a completar los campos automáticamente.",
+            "Sube otra boleta para volver a completar los campos automÃ¡ticamente.",
             "secondary"
         );
         lastAutomationPayload = null;
