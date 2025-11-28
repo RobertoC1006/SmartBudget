@@ -3,12 +3,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from Backend.api.dependencies import get_current_user
-from Backend.api.schemas import smartscore as smartscore_schema
-from Backend.core import alerts as alerts_service
-from Backend.core import smartscore as smartscore_service
-from Backend.db import models
-from Backend.db.session import get_db
+from api.dependencies import get_current_user
+from api.schemas import smartscore as smartscore_schema
+from core import alerts as alerts_service
+from core import smartscore as smartscore_service
+from db import models
+from db.session import get_db
 
 
 router = APIRouter(prefix="/smartscore", tags=["SmartScore"])

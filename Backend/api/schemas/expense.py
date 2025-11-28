@@ -6,7 +6,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from Backend.core.enums import ExpenseCategory, ExpenseSource
+from core.enums import ExpenseCategory, ExpenseSource
 
 
 class ExpenseCreate(BaseModel):

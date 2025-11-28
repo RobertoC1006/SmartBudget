@@ -8,8 +8,8 @@ from typing import Iterable, Optional
 
 from sqlalchemy.orm import Session
 
-from Backend.core.enums import GoalStatus
-from Backend.db import models
+from core.enums import GoalStatus
+from db import models
 
 
 def create_goal(

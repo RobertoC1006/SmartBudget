@@ -3,11 +3,11 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from Backend.api.routes import alerts, auth, budgets, expenses, goals, simulator, smartscore
-from Backend.core.config import get_settings
-from Backend.db import models  # noqa: F401  # Import necesario para registrar los modelos
-from Backend.db.base import Base
-from Backend.db.session import engine
+from api.routes import alerts, auth, budgets, expenses, goals, simulator, smartscore
+from core.config import get_settings
+from db import models  # noqa: F401  # Import necesario para registrar los modelos
+from db.base import Base
+from db.session import engine
 
 
 def create_app() -> FastAPI:

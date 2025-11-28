@@ -6,7 +6,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from Backend.core.enums import GoalStatus
+from core.enums import GoalStatus
 
 
 class GoalCreate(BaseModel):

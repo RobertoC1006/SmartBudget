@@ -9,9 +9,9 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from Backend.core.config import get_settings
-from Backend.core.security import create_access_token, get_password_hash, verify_password
-from Backend.db import models
+from core.config import get_settings
+from core.security import create_access_token, get_password_hash, verify_password
+from db import models
 
 
 class TokenPayload(BaseModel):

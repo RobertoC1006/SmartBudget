@@ -8,9 +8,9 @@ from typing import Iterable
 
 from sqlalchemy.orm import Session
 
-from Backend.core import budgets as budgets_service
-from Backend.core.enums import AlertSeverity, AlertType, ExpenseCategory, SmartScoreBand
-from Backend.db import models
+from core import budgets as budgets_service
+from core.enums import AlertSeverity, AlertType, ExpenseCategory, SmartScoreBand
+from db import models
 
 
 def _band_from_score(score: int) -> SmartScoreBand:

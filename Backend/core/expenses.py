@@ -9,9 +9,9 @@ from typing import Iterable, Optional
 from sqlalchemy import asc, desc
 from sqlalchemy.orm import Session
 
-from Backend.core import budgets as budgets_service
-from Backend.core.enums import ExpenseCategory, ExpenseSource
-from Backend.db import models
+from core import budgets as budgets_service
+from core.enums import ExpenseCategory, ExpenseSource
+from db import models
 
 
 def _to_decimal(value: float | str | Decimal) -> Decimal:
@@ -50,10 +50,10 @@ def create_expense(
     db.commit()
     db.refresh(expense)
     if expense.budget:
-        from Backend.core import alerts as alerts_service  # import interno para evitar ciclo
+        from core import alerts as alerts_service  # import interno para evitar ciclo
 
         alerts_service.check_budget_alerts(db, expense.budget)
-        from Backend.core import smartscore as smartscore_service
+        from core import smartscore as smartscore_service
 
         snapshot = smartscore_service.calculate_smartscore(db, user, budget=expense.budget)
         smartscore_service.generate_alerts_from_score(db, snapshot)

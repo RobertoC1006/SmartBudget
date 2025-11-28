@@ -4,7 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from Backend.core.enums import SimulationScenario
+from core.enums import SimulationScenario
 
 
 class SimulatorRequest(BaseModel):

@@ -3,11 +3,11 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from Backend.api.dependencies import get_current_user
-from Backend.api.schemas import auth as auth_schema
-from Backend.core import auth as auth_service
-from Backend.db import models
-from Backend.db.session import get_db
+from api.dependencies import get_current_user
+from api.schemas import auth as auth_schema
+from core import auth as auth_service
+from db import models
+from db.session import get_db
 
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])

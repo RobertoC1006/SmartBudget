@@ -9,10 +9,10 @@ from typing import Iterable
 
 from sqlalchemy.orm import Session
 
-from Backend.core import budgets as budgets_service
-from Backend.core import smartscore as smartscore_service
-from Backend.core.enums import ExpenseCategory, SimulationScenario
-from Backend.db import models
+from core import budgets as budgets_service
+from core import smartscore as smartscore_service
+from core.enums import ExpenseCategory, SimulationScenario
+from db import models
 
 
 @dataclass

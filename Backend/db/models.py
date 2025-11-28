@@ -22,8 +22,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from Backend.core.enums import AlertSeverity, AlertType, ExpenseCategory, ExpenseSource, GoalStatus, SmartScoreBand
-from Backend.db.base import Base
+from core.enums import AlertSeverity, AlertType, ExpenseCategory, ExpenseSource, GoalStatus, SmartScoreBand
+from db.base import Base
 
 
 UUID_STR = String(36)

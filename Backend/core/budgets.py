@@ -10,9 +10,9 @@ from typing import Iterable, Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from Backend.core.config import get_settings
-from Backend.core.enums import ExpenseCategory
-from Backend.db import models
+from core.config import get_settings
+from core.enums import ExpenseCategory
+from db import models
 
 
 def _current_period(ref: dt.date | None = None) -> tuple[int, int]:

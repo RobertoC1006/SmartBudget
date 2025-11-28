@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from Backend.core.enums import SmartScoreBand
+from core.enums import SmartScoreBand
 
 
 class SmartScoreRead(BaseModel):

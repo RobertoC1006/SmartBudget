@@ -5,12 +5,12 @@ import datetime as dt
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from Backend.api.dependencies import get_current_user
-from Backend.api.schemas import expense as expense_schema
-from Backend.core import expenses as expenses_service
-from Backend.core.enums import ExpenseCategory, ExpenseSource
-from Backend.db import models
-from Backend.db.session import get_db
+from api.dependencies import get_current_user
+from api.schemas import expense as expense_schema
+from core import expenses as expenses_service
+from core.enums import ExpenseCategory, ExpenseSource
+from db import models
+from db.session import get_db
 
 
 router = APIRouter(prefix="/expenses", tags=["Gastos"])

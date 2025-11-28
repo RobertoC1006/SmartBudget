@@ -7,9 +7,9 @@ from typing import Iterable, Sequence
 
 from sqlalchemy.orm import Session
 
-from Backend.core.config import get_settings
-from Backend.core.enums import AlertSeverity, AlertType, ExpenseCategory
-from Backend.db import models
+from core.config import get_settings
+from core.enums import AlertSeverity, AlertType, ExpenseCategory
+from db import models
 
 
 def _remaining_ratio(budget: models.Budget) -> float:

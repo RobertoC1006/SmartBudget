@@ -4,7 +4,7 @@ import datetime as dt
 
 from pydantic import BaseModel
 
-from Backend.core.enums import AlertSeverity, AlertType
+from core.enums import AlertSeverity, AlertType
 
 
 class AlertRead(BaseModel):

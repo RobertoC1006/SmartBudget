@@ -8,7 +8,7 @@ from typing import Any, Dict
 from jose import jwt
 from passlib.context import CryptContext
 
-from Backend.core.config import get_settings
+from core.config import get_settings
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
