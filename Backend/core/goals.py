@@ -8,7 +8,8 @@ from typing import Iterable, Optional
 
 from sqlalchemy.orm import Session
 
-from core.enums import GoalStatus
+from core import expenses as expenses_service
+from core.enums import ExpenseCategory, ExpenseSource, GoalStatus
 from db import models
 
 
@@ -44,25 +45,45 @@ def list_goals(db: Session, user_id: str) -> Iterable[models.Goal]:
 
 
 def update_progress(db: Session, goal: models.Goal, amount: Decimal) -> models.Goal:
-    goal.current_amount = Decimal(str(amount))
+    increment = Decimal(str(amount))
+    if increment <= 0:
+        return goal
+    goal.current_amount = (goal.current_amount + increment).quantize(Decimal("0.01"))
     if goal.current_amount >= goal.target_amount:
         goal.status = GoalStatus.ACHIEVED
     elif goal.current_amount > 0:
         goal.status = GoalStatus.IN_PROGRESS
     db.commit()
     db.refresh(goal)
+    if increment > 0:
+        expenses_service.create_expense(
+            db,
+            user=goal.user,
+            description=f"Ahorro para {goal.name}",
+            amount=increment,
+            category=ExpenseCategory.OTROS,
+            expense_date=dt.date.today(),
+            source=ExpenseSource.ADJUSTMENT,
+            extra_data={"goal_id": goal.id},
+        )
+        db.refresh(goal)
     return goal
 
 
 def recommend_goals(user: models.User) -> list[str]:
-    suggestions = [
-        "Ahorra el 15% de tus ingresos mensuales.",
-        "Reduce los gastos de transporte en un 10%.",
-        "Mantén tu SmartScore sobre 70 durante los próximos 3 meses.",
+    curated = [
+        "Viaje a Colan con amigos.",
+        "Fin de semana de playa o campo.",
+        "Comprar ropa para la nueva temporada.",
+        "Renovar laptop, tablet o celular.",
+        "Fondo de emergencia de 3 meses.",
+        "Curso o certificacion para crecer.",
+        "Entradas para un concierto o festival.",
+        "Mejorar la habitacion o sala de casa.",
     ]
     if user.monthly_income:
-        suggestions.append(f"Reserva S/{float(user.monthly_income) * 0.1:.2f} para un fondo de emergencia.")
-    return suggestions
+        curated.append(f"Separar S/{float(user.monthly_income) * 0.1:.2f} para imprevistos.")
+    return curated
 
 
 def get_goal(db: Session, goal_id: str, user_id: str) -> Optional[models.Goal]:
@@ -71,4 +92,3 @@ def get_goal(db: Session, goal_id: str, user_id: str) -> Optional[models.Goal]:
         .filter(models.Goal.id == goal_id, models.Goal.user_id == user_id)
         .first()
     )
-

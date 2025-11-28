@@ -164,7 +164,7 @@ class _ExpensesPageState extends ConsumerState<ExpensesPage> {
           ),
           const SizedBox(height: 24),
           Text(
-            'Escanear recibo con N8N',
+            'Escanear recibo',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),

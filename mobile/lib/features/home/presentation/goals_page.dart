@@ -6,8 +6,11 @@ import '../../../core/formatters.dart';
 import '../../../core/theme.dart';
 import '../../../data/models/goal.dart';
 import '../../../widgets/async_value_widget.dart';
+import '../../expenses/controllers/expenses_controller.dart';
 import '../../goals/controllers/goals_controller.dart';
 import '../../goals/providers.dart';
+import '../controllers/budget_controller.dart';
+import '../providers.dart';
 
 class GoalsPage extends ConsumerStatefulWidget {
   const GoalsPage({super.key});
@@ -161,64 +164,7 @@ class _GoalsPageState extends ConsumerState<GoalsPage> {
                 );
               }
               return Column(
-                children: goals
-                    .map(
-                      (goal) => Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    goal.name,
-                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                  Chip(
-                                    label: Text(_statusLabel(goal.status)),
-                                    backgroundColor: _statusColor(goal.status).withValues(alpha: 0.15),
-                                    side: BorderSide.none,
-                                    labelStyle: TextStyle(color: _statusColor(goal.status)),
-                                  ),
-                                ],
-                              ),
-                              if (goal.description != null) ...[
-                                const SizedBox(height: 4),
-                                Text(goal.description!, style: Theme.of(context).textTheme.bodySmall),
-                              ],
-                              const SizedBox(height: 12),
-                              LinearProgressIndicator(
-                                value: goal.progress,
-                                backgroundColor: SBColors.secondary.withValues(alpha: 0.3),
-                                color: SBColors.primary,
-                                minHeight: 10,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                '${Formatters.currency(goal.currentAmount)} / ${Formatters.currency(goal.targetAmount)}',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: SBColors.muted),
-                              ),
-                              if (goal.targetDate != null)
-                                Text(
-                                  'Objetivo: ${Formatters.date(goal.targetDate)}',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              const SizedBox(height: 12),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton(
-                                  onPressed: () => _updateProgress(goal),
-                                  child: const Text('Actualizar progreso'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(),
+                children: goals.map((goal) => _GoalCard(goal: goal, onUpdate: () => _updateProgress(goal))).toList(),
               );
             },
           ),
@@ -253,18 +199,30 @@ class _GoalsPageState extends ConsumerState<GoalsPage> {
     }
   }
 
-  void _updateProgress(Goal goal) async {
-    final controller = TextEditingController(text: goal.currentAmount.toStringAsFixed(2));
+  Future<void> _updateProgress(Goal goal) async {
+    final controller = TextEditingController();
     final amount = await showDialog<double>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Actualizar "${goal.name}"'),
-        content: TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-            labelText: 'Monto actual',
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Llevas ${Formatters.currency(goal.currentAmount)} de ${Formatters.currency(goal.targetAmount)}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: SBColors.muted),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Monto a agregar',
+                hintText: 'Ej. 10.50',
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
@@ -275,9 +233,17 @@ class _GoalsPageState extends ConsumerState<GoalsPage> {
         ],
       ),
     );
-    if (amount == null) return;
+    if (amount == null || amount <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ingresa un monto mayor a 0 para avanzar la meta.')),
+        );
+      }
+      return;
+    }
     try {
       await ref.read(goalsControllerProvider.notifier).updateProgress(goal.id, amount);
+      await _refreshBudgetContext();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Progreso actualizado')));
       }
@@ -288,19 +254,14 @@ class _GoalsPageState extends ConsumerState<GoalsPage> {
     }
   }
 
-  String _statusLabel(GoalStatus status) => switch (status) {
-        GoalStatus.achieved => 'Completada',
-        GoalStatus.inProgress => 'En progreso',
-        GoalStatus.missed => 'Perdida',
-        GoalStatus.pending => 'Pendiente',
-      };
-
-  Color _statusColor(GoalStatus status) => switch (status) {
-        GoalStatus.achieved => SBColors.primary,
-        GoalStatus.inProgress => Colors.orange,
-        GoalStatus.missed => Colors.red,
-        GoalStatus.pending => SBColors.muted,
-      };
+  Future<void> _refreshBudgetContext() async {
+    await ref.read(expensesControllerProvider.notifier).load();
+    await ref.read(budgetControllerProvider.notifier).refresh();
+    ref.invalidate(alertsProvider);
+    await ref.read(alertsProvider.future);
+    ref.invalidate(smartScoreProvider);
+    await ref.read(smartScoreProvider.future);
+  }
 
   Future<DateTime?> _pickDate() {
     final now = DateTime.now();
@@ -312,4 +273,253 @@ class _GoalsPageState extends ConsumerState<GoalsPage> {
       locale: const Locale('es', 'PE'),
     );
   }
+}
+
+class _GoalCard extends StatelessWidget {
+  const _GoalCard({required this.goal, required this.onUpdate});
+
+  final Goal goal;
+  final VoidCallback onUpdate;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = goal.progress;
+    final mood = _progressMood(progress);
+    final progressColor = mood.color;
+    final barFill = progress.clamp(0, 1);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  goal.name,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            if (goal.description != null) ...[
+              const SizedBox(height: 4),
+              Text(goal.description!, style: Theme.of(context).textTheme.bodySmall),
+            ],
+            const SizedBox(height: 12),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeOut,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: mood.highlight ? mood.color.withValues(alpha: 0.08) : SBColors.light,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: mood.highlight
+                    ? [
+                        BoxShadow(
+                          color: mood.color.withValues(alpha: 0.15),
+                          blurRadius: 14,
+                          spreadRadius: 0,
+                          offset: const Offset(0, 8),
+                        ),
+                      ]
+                    : [],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Progreso',
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: mood.highlight ? mood.color : SBColors.dark,
+                            ),
+                      ),
+                      Row(
+                        children: [
+                          Text(
+                            '${(progress * 100).clamp(0, 100).toStringAsFixed(0)}%',
+                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: progressColor,
+                                ),
+                          ),
+                          if (mood.badge != null)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: TweenAnimationBuilder<double>(
+                                tween: Tween(begin: 0.85, end: 1.05),
+                                duration: const Duration(milliseconds: 900),
+                                curve: Curves.easeInOut,
+                                builder: (context, scale, child) => Transform.scale(
+                                  scale: scale,
+                                  child: child,
+                                ),
+                                child: Chip(
+                                  label: Text(
+                                    mood.badge!,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  backgroundColor: mood.color,
+                                  side: BorderSide.none,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      return Stack(
+                        alignment: Alignment.centerLeft,
+                        children: [
+                          Container(
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: SBColors.secondary.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 600),
+                            curve: Curves.easeOutCubic,
+                            height: 10,
+                            width: constraints.maxWidth * barFill,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  progressColor.withValues(alpha: 0.8),
+                                  progressColor.withValues(alpha: 0.95),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${Formatters.currency(goal.currentAmount)} / ${Formatters.currency(goal.targetAmount)}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: SBColors.muted),
+                      ),
+                      if (mood.note != null)
+                        Row(
+                          children: [
+                            Icon(Icons.bolt, size: 14, color: mood.color),
+                            const SizedBox(width: 4),
+                            Text(
+                              mood.note!,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: mood.color,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (goal.targetDate != null)
+              Text(
+                'Objetivo: ${Formatters.date(goal.targetDate)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: onUpdate,
+                child: const Text('Actualizar progreso'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+_ProgressMood _progressMood(double progress) {
+  if (progress >= 1) {
+    return _ProgressMood(
+      color: _mix(SBColors.primary, SBColors.light, 0.55),
+      badge: 'Meta alcanzada',
+      note: null,
+      highlight: false,
+    );
+  } else if (progress >= 0.8) {
+    return _ProgressMood(
+      color: _mix(SBColors.primary, SBColors.light, 0.35),
+      badge: 'Casi llegas',
+      note: 'Ultimo empujon para cerrar la meta',
+      highlight: true,
+    );
+  } else if (progress < 0.3) {
+    return _ProgressMood(
+      color: _mix(SBColors.primary, Colors.white, 0.15),
+      badge: 'Arrancaste',
+      note: 'Sigue sumando, cada sol cuenta',
+      highlight: false,
+    );
+  } else if (progress < 0.5) {
+    return _ProgressMood(
+      color: _mix(SBColors.primary, SBColors.secondary, 0.35),
+      badge: 'Buen ritmo',
+      note: 'Manten el paso',
+      highlight: false,
+    );
+  } else if (progress < 0.7) {
+    return _ProgressMood(
+      color: _mix(SBColors.primary, SBColors.dark, 0.2),
+      badge: 'Mitad de camino',
+      note: 'Ya se siente mas cerca',
+      highlight: false,
+    );
+  } else if (progress < 0.8) {
+    return _ProgressMood(
+      color: _mix(SBColors.primary, Colors.lightGreen, 0.3),
+      badge: 'Casi 3/4',
+      note: 'Un poco mas y entras al sprint final',
+      highlight: false,
+    );
+  }
+
+  return _ProgressMood(
+    color: SBColors.primary,
+    badge: null,
+    note: null,
+    highlight: false,
+  );
+}
+
+Color _mix(Color a, Color b, double t) => Color.lerp(a, b, t) ?? a;
+class _ProgressMood {
+  _ProgressMood({
+    required this.color,
+    this.badge,
+    this.note,
+    this.highlight = false,
+  });
+
+  final Color color;
+  final String? badge;
+  final String? note;
+  final bool highlight;
 }
