@@ -33,15 +33,18 @@ class _BudgetPageState extends ConsumerState<BudgetPage> {
   final _amountController = TextEditingController();
   final _nameController = TextEditingController(text: 'Presupuesto mensual');
   final _thresholdController = TextEditingController(text: '0.8');
+  final _extraIncomeController = TextEditingController();
   int _month = DateTime.now().month;
   int _year = DateTime.now().year;
   bool _saving = false;
+  bool _addingIncome = false;
 
   @override
   void dispose() {
     _amountController.dispose();
     _nameController.dispose();
     _thresholdController.dispose();
+    _extraIncomeController.dispose();
     super.dispose();
   }
 
@@ -114,6 +117,47 @@ class _BudgetPageState extends ConsumerState<BudgetPage> {
             },
           ),
           const SizedBox(height: 24),
+          Text(
+            'Añadir ingreso extra',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _extraIncomeController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Monto a sumar',
+                      hintText: 'Ej. 200.00',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _addingIncome ? null : _addIncomeToBudget,
+                      child: _addingIncome
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Text('Agregar al presupuesto'),
+                    ),
+                  ),
+                  Text(
+                    'Úsalo para registrar ingresos adicionales o pagos recibidos en el mes.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: SBColors.muted),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           Text(
             'Actualizar presupuesto',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -242,6 +286,47 @@ class _BudgetPageState extends ConsumerState<BudgetPage> {
       if (mounted) {
         setState(() => _saving = false);
       }
+    }
+  }
+
+  Future<void> _addIncomeToBudget() async {
+    final extra = double.tryParse(_extraIncomeController.text);
+    final budget = ref.read(budgetControllerProvider).valueOrNull;
+    if (extra == null || extra <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Ingresa un monto mayor a 0 para sumar al presupuesto.')));
+      }
+      return;
+    }
+    if (budget == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Primero crea o carga un presupuesto.')));
+      }
+      return;
+    }
+    setState(() => _addingIncome = true);
+    try {
+      await ref.read(budgetControllerProvider.notifier).save(
+            amount: budget.amount + extra,
+            month: budget.month,
+            year: budget.year,
+            name: budget.name,
+            alertThreshold: budget.alertThreshold,
+          );
+      _extraIncomeController.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Se añadieron ${extra.toStringAsFixed(2)} S/ al presupuesto.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _addingIncome = false);
     }
   }
 }

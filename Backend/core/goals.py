@@ -59,7 +59,7 @@ def update_progress(db: Session, goal: models.Goal, amount: Decimal) -> models.G
         expenses_service.create_expense(
             db,
             user=goal.user,
-            description=f"Ahorro para {goal.name}",
+            description=f"Traslado a meta: {goal.name}",
             amount=increment,
             category=ExpenseCategory.OTROS,
             expense_date=dt.date.today(),

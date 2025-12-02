@@ -29,6 +29,7 @@ class _ExpensesPageState extends ConsumerState<ExpensesPage> {
   ExpenseCategory _manualCategory = ExpenseCategory.general;
   DateTime? _manualDate;
   bool _manualSaving = false;
+  int _visibleExpenses = 5;
 
   final _ocrDescription = TextEditingController();
   final _ocrAmount = TextEditingController();
@@ -81,7 +82,10 @@ class _ExpensesPageState extends ConsumerState<ExpensesPage> {
     });
 
     return RefreshIndicator(
-      onRefresh: () => ref.read(expensesControllerProvider.notifier).load(),
+      onRefresh: () async {
+        setState(() => _visibleExpenses = 5);
+        await ref.read(expensesControllerProvider.notifier).load();
+      },
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -276,37 +280,96 @@ class _ExpensesPageState extends ConsumerState<ExpensesPage> {
           const SizedBox(height: 8),
           _buildFilters(ref),
           const SizedBox(height: 8),
-          AsyncValueWidget(
+                                                  AsyncValueWidget(
             value: expensesValue,
             onRetry: () => ref.read(expensesControllerProvider.notifier).load(),
             builder: (List<Expense> expenses) {
               if (expenses.isEmpty) {
                 return const Padding(
                   padding: EdgeInsets.all(24),
-                  child: Text('Aún no registras gastos.'),
+                  child: Text('Aun no registras gastos.'),
                 );
               }
+              final visible = expenses.take(_visibleExpenses.clamp(0, expenses.length)).toList();
+              final grouped = <String, List<Expense>>{};
+              for (final expense in visible) {
+                final key = Formatters.date(expense.expenseDate);
+                grouped.putIfAbsent(key, () => []).add(expense);
+              }
+              final orderedKeys = <String>[];
+              for (final expense in visible) {
+                final key = Formatters.date(expense.expenseDate);
+                if (!orderedKeys.contains(key)) orderedKeys.add(key);
+              }
               return Column(
-                children: expenses
-                    .map(
-                      (expense) => Card(
-                        child: ListTile(
-                          title: Text(expense.description),
-                          subtitle: Text(
-                            '${expense.category.label} · ${Formatters.date(expense.expenseDate)}',
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ...orderedKeys.map(
+                    (key) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                            child: Text(
+                              key,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(color: SBColors.muted, fontWeight: FontWeight.w700),
+                            ),
                           ),
-                          trailing: Text(
-                            Formatters.currency(expense.amount, currency: expense.currency),
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ...grouped[key]!.map(
+                            (expense) => Card(
+                              child: ListTile(
+                                title: Text(expense.description),
+                                subtitle: Text(
+                                  '${expense.category.label} - ${Formatters.date(expense.expenseDate)}',
+                                ),
+                                trailing: Text(
+                                  Formatters.currency(expense.amount, currency: expense.currency),
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
-                    )
-                    .toList(),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.center,
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 12,
+                      children: [
+                        if (expenses.length > visible.length)
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _visibleExpenses = (_visibleExpenses + 5).clamp(0, expenses.length);
+                              });
+                            },
+                            child: Text('Ver más (${expenses.length - visible.length} restantes)'),
+                          ),
+                        if (_visibleExpenses > 5)
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _visibleExpenses = 5;
+                              });
+                            },
+                            child: const Text('Ver menos'),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               );
             },
           ),
-          const SizedBox(height: 16),
+const SizedBox(height: 16),
           budgetValue.maybeWhen(
             data: (budget) => budget != null
                 ? Text(
